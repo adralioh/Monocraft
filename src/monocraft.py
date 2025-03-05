@@ -18,10 +18,12 @@ import fontforge
 import json
 import math
 import argparse
+import zipfile
 from generate_diacritics import generateDiacritics
 from generate_examples import generateExamples
 from polygonizer import PixelImage, generatePolygons
 from generate_continuous_ligatures import generate_continuous_ligatures
+from resource_pack import AtlasCharacter, groupChars, createAtlases, writeResourcePack
 
 PIXEL_SIZE = 120
 
@@ -32,6 +34,7 @@ ligatures += generate_continuous_ligatures("./continuous_ligatures.json")
 
 characters = generateDiacritics(characters, diacritics)
 charactersByCodepoint = {}
+imagesByCodepoint = {}
 
 def parseArgs():
 	parser = argparse.ArgumentParser()
@@ -39,6 +42,18 @@ def parseArgs():
 		"--output-ttc",
 		action="store_true",
 		dest="output_ttc",
+	)
+	parser.add_argument(
+		"--output-minecraft-standalone",
+		action="store_true",
+		dest="output_minecraft_standalone",
+		help="create a Minecraft resource pack that contains the standalone 'monocraft:regular' font",
+	)
+	parser.add_argument(
+		"--output-minecraft-default",
+		action="store_true",
+		dest="output_minecraft_default",
+		help="create a Minecraft resource pack that replaces the 'minecraft:default' font",
 	)
 	parser.add_argument(
 		"-a",
@@ -87,7 +102,7 @@ def parseArgs():
 		ret.black = ret.bold = ret.semibold = ret.light = ret.extralight = ret.italic = True
 	return ret
 
-def generateFont(*, black=False, bold=False, semibold=False, light=False, extralight=False, italic=False, output_ttc=False, **kw):
+def generateFont(*, black=False, bold=False, semibold=False, light=False, extralight=False, italic=False, output_ttc=False, output_minecraft_standalone=False, output_minecraft_default=False, **kw):
 	fontList = [
 		fontforge.font(),
 		fontforge.font() if italic else None,
@@ -210,6 +225,7 @@ def generateFont(*, black=False, bold=False, semibold=False, light=False, extral
 	for character in characters:
 		charactersByCodepoint[character["codepoint"]] = character
 		image, kw = generateImage(character)
+		imagesByCodepoint[character["codepoint"]] = image
 		createChar(fontList, character["codepoint"], character["name"], image, **kw)
 	print(f"Generated {len(characters)} characters")
 
@@ -224,6 +240,8 @@ def generateFont(*, black=False, bold=False, semibold=False, light=False, extral
 			ttcflags=("merge", ),
 			layer=1,
 		)
+
+	generateResourcePacks(outputDir, output_minecraft_standalone, output_minecraft_default)
 
 	for ligature in ligatures:
 		image, kw = generateImage(ligature)
@@ -386,6 +404,28 @@ def createChar(
 
 		drawPolygon(p, char.glyphPen())
 		char.width = width if width is not None else PIXEL_SIZE * 6
+
+def generateResourcePacks(outputDir, output_minecraft_standalone, output_minecraft_default):
+	if not output_minecraft_standalone and not output_minecraft_default:
+		# Nothing to do
+		return
+
+	chars = groupChars(
+		AtlasCharacter(codepoint=char["codepoint"], image=imagesByCodepoint[char["codepoint"]])
+		for char in characters
+	)
+	atlases = createAtlases(chars)
+	print(f"Drew {len(atlases)} texture atlases")
+
+	license_file = "../LICENSE"
+
+	if output_minecraft_standalone:
+		with zipfile.ZipFile(outputDir + "Monocraft-resource-pack-standalone.zip", "w") as zip:
+			writeResourcePack(zip, atlases=atlases, namespace="monocraft", font_name="regular", description="Monocraft: Standalone font", license_file=license_file)
+
+	if output_minecraft_default:
+		with zipfile.ZipFile(outputDir + "Monocraft-resource-pack-default.zip", "w") as zip:
+			writeResourcePack(zip, atlases=atlases, namespace="minecraft", font_name="default", description="Monocraft: Default font replacement", license_file=license_file)
 
 args = parseArgs()
 generateFont(**vars(args))
