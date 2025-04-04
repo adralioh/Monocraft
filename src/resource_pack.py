@@ -147,7 +147,7 @@ def writeResourcePack(zip: zipfile.ZipFile, *, atlases: Mapping[AtlasKey, Atlas]
 		})
 
 		with zip.open(f"assets/{namespace}/textures/{texture_path}", "w") as fp:
-			atlas.image.save(fp)
+			atlas.image.save(fp, format="png")
 
 	font_providers.extend(FALLBACK_FONT_PROVIDERS)
 
