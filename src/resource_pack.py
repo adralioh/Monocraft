@@ -162,7 +162,7 @@ def writeResourcePack(zip: zipfile.ZipFile, *, atlases: Mapping[AtlasKey, Atlas]
 			"pack_format": 15,
 			"supported_formats": {
 				"min_inclusive": 15,
-				"max_inclusive": 46,
+				"max_inclusive": 55,
 			},
 		},
 	}
